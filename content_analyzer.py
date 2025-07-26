@@ -1,7 +1,6 @@
 import openai
 import os
 import json
-import tiktoken
 
 class ContentAnalyzer:
     SYSTEM_PROMPT = """You are a senior business analyst with 20 years of experience in distilling complex information into actionable insights for executive leadership. Your analysis is sharp, concise, and always aligned with strategic business objectives. You are thorough, detail-oriented, and your insights are trusted to drive major corporate decisions. When you analyze content, you must strictly adhere to the provided JSON template, ensuring every field is populated accurately and professionally."""
@@ -76,14 +75,6 @@ class ContentAnalyzer:
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set.")
         openai.api_key = self.api_key
-        self.encoding = tiktoken.encoding_for_model("gpt-4o-mini")
-
-    def _truncate_text(self, text: str, max_tokens: int = 120000) -> str:
-        tokens = self.encoding.encode(text)
-        if len(tokens) > max_tokens:
-            truncated_tokens = tokens[:max_tokens]
-            return self.encoding.decode(truncated_tokens)
-        return text
 
     def analyze_content(self, text: str, analysis_type: str = "General Business") -> dict:
         if analysis_type not in self.ANALYSIS_TEMPLATES:
@@ -92,7 +83,6 @@ class ContentAnalyzer:
         template = self.ANALYSIS_TEMPLATES[analysis_type]
 
         try:
-            truncated_text = self._truncate_text(text)
             response = openai.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
@@ -102,7 +92,7 @@ class ContentAnalyzer:
                     },
                     {
                         "role": "user",
-                        "content": f"Please perform a '{analysis_type}' analysis on the following content. Provide the output in a JSON object based on this template. Do not deviate from the structure:\n\n{json.dumps(template, indent=2)}\n\nContent to Analyze:\n---_BEGIN_CONTENT---_\n{truncated_text}\n---_END_CONTENT---"
+                        "content": f"Please perform a '{analysis_type}' analysis on the following content. Provide the output in a JSON object based on this template. Do not deviate from the structure:\n\n{json.dumps(template, indent=2)}\n\nContent to Analyze:\n---_BEGIN_CONTENT---_\n{text}\n---_END_CONTENT---"
                     }
                 ],
                 temperature=0.3,
