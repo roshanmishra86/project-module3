@@ -1,8 +1,7 @@
-
-
 import PyPDF2
 import docx
 import tiktoken
+
 
 class DocumentProcessor:
     """
@@ -19,6 +18,16 @@ class DocumentProcessor:
         """
         self.max_tokens = max_tokens
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
+
+    def extract_content(self, file_path):
+        """
+        Extracts and cleans text content from a document, for use in analysis.
+        Args:
+            file_path (str): The path to the document.
+        Returns:
+            str: The cleaned text content of the document.
+        """
+        return self.process(file_path)["content"]
 
     def _get_text_from_pdf(self, file_path):
         """Extracts text from a PDF file."""
@@ -82,3 +91,7 @@ class DocumentProcessor:
             "size_bytes": len(cleaned_text.encode('utf-8'))
         }
 
+
+# Ensure the required dependencies are installed
+# Run the following command in your virtual environment:
+# pip install PyPDF2 python-docx tiktoken

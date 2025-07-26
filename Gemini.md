@@ -1,5 +1,16 @@
 # Project: Enterprise Content Analysis Platform
 
+## Analytics Dashboard Streamlit Refactor (July 2025)
+
+- Refactored dashboard to use tabs for "Single Analysis" and "Batch Processing".
+- Batch processing supports multiple file uploads and displays results in a pandas DataFrame.
+- DataFrame columns: Document, Type, Sentiment, Business Impact, Confidence, Cost.
+- Added CSV export button for results.
+- Total cost and average confidence are calculated and displayed for each batch.
+- Field extraction logic is mapped to each analysis type for consistent reporting.
+- Old/duplicate upload and analysis UI was removed for clarity.
+
+This structure will help future maintenance and feature additions for analytics reporting and export.
 ## File Structure
 
 - `app.py`: The main Streamlit application.
