@@ -14,19 +14,30 @@ except ValueError as e:
     st.error(e)
     st.stop()
 
-uploaded_file = st.file_uploader("Upload a business document", type=["txt", "md"])
+col1, col2 = st.columns(2)
 
-if uploaded_file is not None:
-    with st.spinner("Analyzing document..."):
-        content = uploaded_file.read().decode("utf-8")
-        analysis_result = analyzer.analyze_content(content)
+with col1:
+    st.header("Input Content")
+    content_input = st.text_area("Paste your content here", height=300)
+    analyze_button = st.button("Analyze")
 
-        st.subheader("Analysis Result")
-        if "error" in analysis_result:
-            st.error(analysis_result["error"])
+with col2:
+    st.header("Analysis Results")
+    if analyze_button:
+        if content_input:
+            with st.spinner("Analyzing content..."):
+                analysis_result = analyzer.analyze_content(content_input)
+
+                if "error" in analysis_result:
+                    st.error(analysis_result["error"])
+                else:
+                    st.success("Analysis complete!")
+                    st.write("**Summary:**", analysis_result.get("summary"))
+                    st.write("**Sentiment:**", analysis_result.get("sentiment"))
+                    st.write("**Key Points:**")
+                    for point in analysis_result.get("key_points", []):
+                        st.write(f"- {point}")
+
+                    st.info("Estimated API Cost: $0.05")
         else:
-            st.write("**Summary:**", analysis_result.get("summary"))
-            st.write("**Sentiment:**", analysis_result.get("sentiment"))
-            st.write("**Key Points:**")
-            for point in analysis_result.get("key_points", []):
-                st.write(f"- {point}")
+            st.warning("Please paste some content to analyze.")
