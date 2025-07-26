@@ -1,6 +1,7 @@
 import openai
 import os
 import json
+import tiktoken
 
 class ContentAnalyzer:
     SYSTEM_PROMPT = """You are a senior business analyst with 20 years of experience in distilling complex information into actionable insights for executive leadership. Your analysis is sharp, concise, and always aligned with strategic business objectives. You are thorough, detail-oriented, and your insights are trusted to drive major corporate decisions. When you analyze content, you must strictly adhere to the provided JSON template, ensuring every field is populated accurately and professionally."""
@@ -83,23 +84,33 @@ class ContentAnalyzer:
         template = self.ANALYSIS_TEMPLATES[analysis_type]
 
         try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": self.SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": f"Please perform a '{analysis_type}' analysis on the following content. Provide the output in a JSON object based on this template. Do not deviate from the structure:\n\n{json.dumps(template, indent=2)}\n\nContent to Analyze:\n---_BEGIN_CONTENT---_\n{text}\n---_END_CONTENT---"
+                }
+            ]
+            
+            # Calculate input tokens
+            encoding = tiktoken.encoding_for_model("gpt-4o-mini")
+            input_tokens_used = sum(len(encoding.encode(m["content"])) for m in messages)
+
             response = openai.chat.completions.create(
                 model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": self.SYSTEM_PROMPT
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Please perform a '{analysis_type}' analysis on the following content. Provide the output in a JSON object based on this template. Do not deviate from the structure:\n\n{json.dumps(template, indent=2)}\n\nContent to Analyze:\n---_BEGIN_CONTENT---_\n{text}\n---_END_CONTENT---"
-                    }
-                ],
+                messages=messages,
                 temperature=0.3,
                 response_format={"type": "json_object"}
             )
             analysis = json.loads(response.choices[0].message.content)
-            return analysis
+            
+            # Calculate output tokens
+            output_tokens_used = len(encoding.encode(response.choices[0].message.content))
+            
+            return analysis, input_tokens_used, output_tokens_used
         except openai.APIError as e:
             return {"error": f"OpenAI API error: {e}"}
         except Exception as e:

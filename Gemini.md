@@ -5,6 +5,7 @@
 - `app.py`: The main Streamlit application.
 - `content_analyzer.py`: Module for handling content analysis with OpenAI.
 - `document_processor.py`: Module for processing uploaded documents.
+- `cost_tracker.py`: Module for tracking API usage and costs.
 - `requirements.txt`: Project dependencies.
 - `.env.example`: Example for environment variables.
 - `README.md`: Project overview.
@@ -36,10 +37,13 @@ The main application is built with Streamlit and provides a user-friendly interf
 
 -   **Professional Title:** The application is titled "Enterprise Content Analysis Platform".
 -   **Analysis Type Selection:** A dropdown menu allows users to select the type of analysis to perform (e.g., General Business, Competitive Intelligence, Customer Feedback).
-    - **Content Input:** A file uploader allows users to upload one or more text, PDF, or DOCX files for analysis.
+-   **Content Input:** A file uploader allows users to upload one or more text, PDF, or DOCX files for analysis.
+-   **File Information Display:** After uploading, the application displays file type, size, and token count for each document.
+-   **Cost Estimation:** The estimated cost of the API call is shown for each uploaded file before analysis.
+-   **Cost Tracking Metrics:** Daily and monthly API usage and remaining budget are displayed in the sidebar.
 -   **Analysis Trigger:** An "Analyze" button initiates the content analysis process for the uploaded files using the selected analysis type.
 -   **Formatted Results:** The analysis results for each file are displayed in a clear and organized format tailored to the chosen analysis type.
--   **Cost Estimation:** The estimated cost of the API call is shown after each analysis.
+-   **Error Handling:** Proper error handling is implemented for unsupported file types or processing issues.
 -   **Layout:** The application is organized with configuration options (analysis type, file uploader) at the top, followed by the detailed results for each analyzed file.
 
 ## ContentAnalyzer Class
@@ -75,3 +79,15 @@ The `DocumentProcessor` class in `document_processor.py` handles file processing
   - Optimizes content length to reduce API costs (max 3000 tokens).
   - Uses tiktoken to count tokens accurately.
   - Returns document metadata (type, size, token count).
+
+## CostTracker Class
+
+The `CostTracker` class in `cost_tracker.py` tracks daily and monthly API usage and calculates costs.
+
+### Methods
+
+- `record_usage(input_tokens, output_tokens)`: Records the API usage and calculates the cost.
+- `get_daily_usage()`: Returns the total cost for the current day.
+- `get_monthly_usage()`: Returns the total cost for the current month.
+- `can_afford(estimated_cost)`: Checks if the estimated cost is within the daily and monthly budget limits.
+- `get_remaining_budget()`: Returns the remaining daily and monthly budget.
