@@ -41,18 +41,25 @@ The main application is built with Streamlit and provides a user-friendly interf
 -   **File Information Display:** After uploading, the application displays file type, size, and token count for each document.
 -   **Cost Estimation:** The estimated cost of the API call is shown for each uploaded file before analysis.
 -   **Cost Tracking Metrics:** Daily and monthly API usage and remaining budget are displayed in the sidebar.
--   **Analysis Trigger:** An "Analyze" button initiates the content analysis process for the uploaded files using the selected analysis type.
+-   **Batch Analysis:** The "Analyze Content" button triggers batch processing for all uploaded files. Progress is shown using `st.progress()` and status updates. Each file is processed with a 0.5s delay between API calls, and errors for individual files do not stop the batch.
 -   **Formatted Results:** The analysis results for each file are displayed in a clear and organized format tailored to the chosen analysis type.
--   **Error Handling:** Proper error handling is implemented for unsupported file types or processing issues.
+-   **Error Handling:** Proper error handling is implemented for unsupported file types or processing issues. If a file fails, its error is shown but other files continue.
 -   **Layout:** The application is organized with configuration options (analysis type, file uploader) at the top, followed by the detailed results for each analyzed file.
 
 ## ContentAnalyzer Class
 
-The `ContentAnalyzer` class in `content_analyzer.py` connects to the OpenAI API to analyze text.
+The `ContentAnalyzer` class in `content_analyzer.py` connects to the OpenAI API to analyze text, supporting both single and batch processing.
 
 ### Methods
 
-- `analyze_content(text)`: Sends the input text to GPT-4o-mini for analysis and returns a dictionary with the following information:
+- `analyze_content(text, analysis_type)`: Sends the input text to GPT-4o-mini for analysis and returns a dictionary with structured results (see below).
+- `batch_analyze(docs, analysis_type, progress_callback=None)`: Processes a list of documents in batch mode with:
+  - Progress tracking (calls `progress_callback(progress, status)` if provided)
+  - 0.5 second rate limiting between requests
+  - Graceful error handling (continues if one document fails)
+  - Returns a list of results, each with `id`, `timestamp`, `result`, and `error` (if any)
+
+#### Output Structure (for each document)
   - `content_classification`:
     - `type`: e.g., Financial Report, Customer Feedback, News Article
     - `industry`: e.g., Technology, Healthcare, Finance
@@ -66,6 +73,9 @@ The `ContentAnalyzer` class in `content_analyzer.py` connects to the OpenAI API 
     - `risks`: A list of risks.
   - `action_items`: A list of action items with priorities (High, Medium, Low).
   - `executive_summary`: A concise, high-level summary for a C-suite audience.
+  - `id`: Document identifier
+  - `timestamp`: UTC ISO timestamp of analysis
+  - `error`: Error message if analysis failed, else `None`
 
 ## DocumentProcessor Class
 

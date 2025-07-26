@@ -70,122 +70,138 @@ with col2:
 
 if st.button("Analyze Content"):
     if uploaded_files:
+        # Prepare docs for batch processing
+        docs = []
+        file_info_map = {}
+        temp_paths = []
         for uploaded_file in uploaded_files:
-            st.markdown(f"---")
-            st.header(f"Analysis for: `{uploaded_file.name}` (`{analysis_type}`)")
-
-            # Save uploaded file to a temporary location for DocumentProcessor
             with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp_file:
                 tmp_file.write(uploaded_file.getvalue())
                 tmp_file_path = tmp_file.name
-
             try:
                 processed_doc = doc_processor.process(tmp_file_path)
-                content_input = processed_doc["content"]
-                token_count = processed_doc["token_count"]
-                file_type = processed_doc["file_type"]
-                file_size = processed_doc["size_bytes"]
-
-                st.subheader(f"File: {uploaded_file.name}")
-                st.write(f"**File Type:** {file_type.upper()}")
-                st.write(f"**File Size:** {file_size} bytes")
-                st.write(f"**Token Count (for analysis):** {token_count}")
-
-                # Estimate cost and check budget before analysis
-                # Assuming 500 output tokens for estimation for a rough estimate
-                estimated_cost = cost_tracker._calculate_cost(token_count, 500)
-                st.write(f"**Estimated Analysis Cost:** ${estimated_cost:.4f}")
-
-                if not cost_tracker.can_afford(estimated_cost):
-                    st.error(f"Analysis for {uploaded_file.name} would exceed budget. Estimated cost: ${estimated_cost:.2f}. Daily remaining: ${daily_remaining:.2f}, Monthly remaining: ${monthly_remaining:.2f}.")
-                    os.unlink(tmp_file_path)
-                    continue
-
-                with st.spinner(f"Performing '{analysis_type}' analysis on {uploaded_file.name}..."):
-                    analysis_result, input_tokens_used, output_tokens_used = analyzer.analyze_content(content_input, analysis_type)
-
-                    if "error" in analysis_result:
-                        st.error(analysis_result["error"])
-                    else:
-                        # Record actual usage after successful analysis
-                        actual_cost = cost_tracker.record_usage(input_tokens_used, output_tokens_used)
-                        st.success(f"Analysis complete for {uploaded_file.name}! Cost: ${actual_cost:.4f}")
-
-                        if analysis_type == "General Business":
-                            st.subheader("Executive Summary")
-                            st.write(analysis_result.get("executive_summary", "Not available."))
-
-                            st.subheader("Content Classification")
-                            classification = analysis_result.get("content_classification", {})
-                            st.table(classification)
-
-                            st.subheader("Key Insights")
-                            insights = analysis_result.get("key_insights", [])
-                            st.table(insights)
-
-                            st.subheader("Sentiment Analysis")
-                            sentiment = analysis_result.get("sentiment_analysis", {})
-                            st.table(sentiment)
-
-                            st.subheader("Strategic Implications")
-                            implications = analysis_result.get("strategic_implications", {})
-                            st.write("**Opportunities:**")
-                            st.json(implications.get("opportunities", []))
-                            st.write("**Risks:**")
-                            st.json(implications.get("risks", []))
-
-                            st.subheader("Action Items")
-                            actions = analysis_result.get("action_items", [])
-                            st.table(actions)
-
-                        elif analysis_type == "Competitive Intelligence":
-                            st.subheader("Executive Summary")
-                            st.write(analysis_result.get("executive_summary", "Not available."))
-
-                            st.subheader("Competitor Profile")
-                            profile = analysis_result.get("competitor_profile", {})
-                            st.table(profile)
-
-                            st.subheader("Key Findings")
-                            findings = analysis_result.get("key_findings", [])
-                            st.table(findings)
-
-                            st.subheader("Strategic Analysis")
-                            strategic_analysis = analysis_result.get("strategic_analysis", {})
-                            st.write("**Opportunities:**")
-                            st.table(strategic_analysis.get("opportunities", []))
-                            st.write("**Threats:**")
-                            st.table(strategic_analysis.get("threats", []))
-
-                            st.subheader("Recommendations")
-                            recommendations = analysis_result.get("recommendations", [])
-                            st.table(recommendations)
-
-                        elif analysis_type == "Customer Feedback":
-                            st.subheader("Executive Summary")
-                            st.write(analysis_result.get("executive_summary", "Not available."))
-
-                            st.subheader("Feedback Classification")
-                            classification = analysis_result.get("feedback_classification", {})
-                            st.table(classification)
-
-                            st.subheader("Sentiment Analysis")
-                            sentiment = analysis_result.get("sentiment_analysis", {})
-                            st.table(sentiment)
-
-                            st.subheader("Key Themes")
-                            themes = analysis_result.get("key_themes", [])
-                            st.table(themes)
-
-                            st.subheader("Actionable Insights")
-                            insights = analysis_result.get("actionable_insights", [])
-                            st.table(insights)
-            except ValueError as e:
-                st.error(f"Error processing {uploaded_file.name}: {e}")
+                docs.append({
+                    'id': uploaded_file.name,
+                    'content': processed_doc['content']
+                })
+                file_info_map[uploaded_file.name] = {
+                    'token_count': processed_doc['token_count'],
+                    'file_type': processed_doc['file_type'],
+                    'file_size': processed_doc['size_bytes']
+                }
             except Exception as e:
-                st.error(f"An unexpected error occurred while processing {uploaded_file.name}: {e}")
-            finally:
-                # Clean up the temporary file
-                os.unlink(tmp_file_path)
+                st.error(f"Error reading {uploaded_file.name}: {e}")
+            temp_paths.append(tmp_file_path)
+
+        # Estimate cost for all files
+        total_estimated_cost = 0
+        for doc in docs:
+            info = file_info_map.get(doc['id'], {})
+            token_count = info.get('token_count', 0)
+            total_estimated_cost += cost_tracker._calculate_cost(token_count, 500)
+
+        if not cost_tracker.can_afford(total_estimated_cost):
+            st.error(f"Batch analysis would exceed budget. Estimated cost: ${total_estimated_cost:.2f}. Daily remaining: ${daily_remaining:.2f}, Monthly remaining: ${monthly_remaining:.2f}.")
+            for p in temp_paths:
+                os.unlink(p)
+        else:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            def progress_callback(progress, status):
+                progress_bar.progress(min(int(progress * 100), 100))
+                status_text.text(status)
+
+            with st.spinner(f"Performing batch '{analysis_type}' analysis on {len(docs)} file(s)..."):
+                results = analyzer.batch_analyze(docs, analysis_type, progress_callback=progress_callback)
+
+            for result in results:
+                st.markdown(f"---")
+                st.header(f"Analysis for: `{result['id']}` (`{analysis_type}`)")
+                info = file_info_map.get(result['id'], {})
+                st.subheader(f"File: {result['id']}")
+                st.write(f"**File Type:** {info.get('file_type', '').upper()}")
+                st.write(f"**File Size:** {info.get('file_size', 0)} bytes")
+                st.write(f"**Token Count (for analysis):** {info.get('token_count', 0)}")
+                st.write(f"**Timestamp:** {result['timestamp']}")
+                if result['error']:
+                    st.error(f"Error: {result['error']}")
+                    continue
+                analysis_result = result['result']
+                input_tokens_used = result.get('input_tokens', 0)
+                output_tokens_used = result.get('output_tokens', 0)
+                actual_cost = cost_tracker.record_usage(input_tokens_used, output_tokens_used)
+                st.success(f"Analysis complete for {result['id']}! Cost: ${actual_cost:.4f}")
+
+                if analysis_type == "General Business":
+                    st.subheader("Executive Summary")
+                    st.write(analysis_result.get("executive_summary", "Not available."))
+
+                    st.subheader("Content Classification")
+                    classification = analysis_result.get("content_classification", {})
+                    st.table(classification)
+
+                    st.subheader("Key Insights")
+                    insights = analysis_result.get("key_insights", [])
+                    st.table(insights)
+
+                    st.subheader("Sentiment Analysis")
+                    sentiment = analysis_result.get("sentiment_analysis", {})
+                    st.table(sentiment)
+
+                    st.subheader("Strategic Implications")
+                    implications = analysis_result.get("strategic_implications", {})
+                    st.write("**Opportunities:**")
+                    st.json(implications.get("opportunities", []))
+                    st.write("**Risks:**")
+                    st.json(implications.get("risks", []))
+
+                    st.subheader("Action Items")
+                    actions = analysis_result.get("action_items", [])
+                    st.table(actions)
+
+                elif analysis_type == "Competitive Intelligence":
+                    st.subheader("Executive Summary")
+                    st.write(analysis_result.get("executive_summary", "Not available."))
+
+                    st.subheader("Competitor Profile")
+                    profile = analysis_result.get("competitor_profile", {})
+                    st.table(profile)
+
+                    st.subheader("Key Findings")
+                    findings = analysis_result.get("key_findings", [])
+                    st.table(findings)
+
+                    st.subheader("Strategic Analysis")
+                    strategic_analysis = analysis_result.get("strategic_analysis", {})
+                    st.write("**Opportunities:**")
+                    st.table(strategic_analysis.get("opportunities", []))
+                    st.write("**Threats:**")
+                    st.table(strategic_analysis.get("threats", []))
+
+                    st.subheader("Recommendations")
+                    recommendations = analysis_result.get("recommendations", [])
+                    st.table(recommendations)
+
+                elif analysis_type == "Customer Feedback":
+                    st.subheader("Executive Summary")
+                    st.write(analysis_result.get("executive_summary", "Not available."))
+
+                    st.subheader("Feedback Classification")
+                    classification = analysis_result.get("feedback_classification", {})
+                    st.table(classification)
+
+                    st.subheader("Sentiment Analysis")
+                    sentiment = analysis_result.get("sentiment_analysis", {})
+                    st.table(sentiment)
+
+                    st.subheader("Key Themes")
+                    themes = analysis_result.get("key_themes", [])
+                    st.table(themes)
+
+                    st.subheader("Actionable Insights")
+                    insights = analysis_result.get("actionable_insights", [])
+                    st.table(insights)
+            for p in temp_paths:
+                os.unlink(p)
     else:
         st.warning("Please upload at least one file to analyze.")

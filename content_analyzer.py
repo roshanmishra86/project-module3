@@ -2,8 +2,55 @@ import openai
 import os
 import json
 import tiktoken
+import time
+from datetime import datetime
 
 class ContentAnalyzer:
+    def batch_analyze(self, docs, analysis_type="General Business", progress_callback=None):
+        """
+        Batch process multiple documents with progress tracking, rate limiting, and error handling.
+        Args:
+            docs (list of dict): Each dict should have at least 'id' and 'content' keys.
+            analysis_type (str): Type of analysis to perform.
+            progress_callback (callable): Function accepting (progress: float, status: str).
+        Returns:
+            list of dict: Each result includes 'id', 'timestamp', 'result', and 'error' if any.
+        """
+        results = []
+        total = len(docs)
+        for idx, doc in enumerate(docs):
+            doc_id = doc.get('id', f'doc_{idx}')
+            content = doc.get('content', '')
+            timestamp = datetime.utcnow().isoformat()
+            status = f"Analyzing {doc_id} ({idx+1}/{total})"
+            if progress_callback:
+                progress_callback(idx / total, status)
+            try:
+                analysis_result, input_tokens, output_tokens = self.analyze_content(content, analysis_type)
+                result = {
+                    'id': doc_id,
+                    'timestamp': timestamp,
+                    'result': analysis_result,
+                    'input_tokens': input_tokens,
+                    'output_tokens': output_tokens,
+                    'error': None
+                }
+            except Exception as e:
+                result = {
+                    'id': doc_id,
+                    'timestamp': timestamp,
+                    'result': None,
+                    'input_tokens': None,
+                    'output_tokens': None,
+                    'error': str(e)
+                }
+            results.append(result)
+            time.sleep(0.5)  # Rate limiting
+            if progress_callback:
+                progress_callback((idx+1) / total, f"Completed {doc_id}")
+        if progress_callback:
+            progress_callback(1.0, "Batch analysis complete.")
+        return results
     SYSTEM_PROMPT = """You are a senior business analyst with 20 years of experience in distilling complex information into actionable insights for executive leadership. Your analysis is sharp, concise, and always aligned with strategic business objectives. You are thorough, detail-oriented, and your insights are trusted to drive major corporate decisions. When you analyze content, you must strictly adhere to the provided JSON template, ensuring every field is populated accurately and professionally."""
 
     ANALYSIS_TEMPLATES = {
